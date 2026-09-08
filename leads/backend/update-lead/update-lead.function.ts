@@ -107,6 +107,23 @@ export async function updateLead(input: UpdateLeadInput) {
 		throw new Error('Lead not found');
 	}
 
+	const isBillableLead = editableLead.status === LeadStatus.BILLABLE;
+	const isLoanOfficerBillableCommentUpdate =
+		isBillableLead &&
+		currentUser.role === UserRole.LOAN_OFFICER &&
+		editableLead.loan_officer_id?.toString() === currentUser.id &&
+		validatedInput.status === LeadStatus.BILLABLE &&
+		validatedInput.paymentStatus === undefined &&
+		!hasAdminOnlyEditFields(validatedInput);
+
+	if (
+		isBillableLead &&
+		currentUser.role !== UserRole.ADMIN &&
+		!isLoanOfficerBillableCommentUpdate
+	) {
+		throw new Error('Forbidden: Billable leads can only be edited by admins');
+	}
+
 	if (currentUser.role === UserRole.MANAGER) {
 		if (!currentUser.teamId) {
 			throw new Error('Forbidden: Manager is not assigned to a team');
@@ -311,7 +328,8 @@ export async function updateLead(input: UpdateLeadInput) {
 
 	editableLead.status = validatedInput.status;
 	editableLead.status_reason =
-		validatedInput.status === LeadStatus.NON_BILLABLE
+		validatedInput.status === LeadStatus.NON_BILLABLE ||
+		validatedInput.status === LeadStatus.BILLABLE
 			? validatedInput.statusReason
 			: undefined;
 
